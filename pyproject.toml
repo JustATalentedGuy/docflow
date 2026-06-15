@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "docflow"
+version = "1.0.0"
+description = "Multi-agent document processing and query API"
+authors = ["Ponsubash Raj R"]
+readme = "README.md"
+python = "^3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# Tests that require real services (OCR, HF API) are excluded by default.
+# Run them explicitly: pytest tests/ -m integration
+markers = [
+    "integration: requires running Redis, Qdrant, and external APIs",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I"]
+ignore = ["E501"]
