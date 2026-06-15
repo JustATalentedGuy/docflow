@@ -331,8 +331,21 @@ Recommended settings:
 - Subnet: `docflow-public-subnet`
 - Public IPv4: enabled
 - IAM role: `docflow-demo-ec2-role`
+- Instance metadata: IMDSv2 enabled and **metadata response hop limit set to 2**, so Docker containers can obtain the EC2 role credentials
 
 The API and worker each load ML dependencies, so a 1 GB micro instance is not a reliable target. A 2 GB instance may work with swap and small PDFs, while 4 GB is the safer recording configuration. Strict legacy Free Tier eligibility may therefore be insufficient; use promotional credits or run the instance only for the short demo window.
+
+To set this on an existing instance:
+
+1. Open **EC2 -> Instances**.
+2. Select the Docflow instance.
+3. Choose **Actions -> Instance settings -> Modify instance metadata options**.
+4. Set **Instance metadata service** to enabled.
+5. Set **IMDSv2** to required or optional.
+6. Set **Metadata response hop limit** to `2`.
+7. Save the changes.
+
+The default hop limit of `1` commonly prevents boto3 inside a Docker container from reading EC2 instance-role credentials.
 
 ### Security group
 
@@ -791,6 +804,27 @@ Verify:
 - The IAM policy contains the exact bucket ARN.
 - `AWS_ENDPOINT_URL` is blank.
 - AWS access-key variables are blank so boto3 uses the instance role.
+- EC2 metadata response hop limit is `2`, allowing Docker containers to use the instance role.
+
+Test credentials and S3 directly from the API container:
+
+```bash
+docker compose --env-file .env.cloud -f infra/docker-compose.aws.yml exec api \
+  python -c "import boto3; from app.core.config import settings; s=boto3.Session(); c=s.client('s3', region_name=settings.AWS_REGION); creds=s.get_credentials(); print('bucket:', settings.S3_BUCKET_NAME); print('credential method:', creds.method if creds else 'NONE'); c.head_bucket(Bucket=settings.S3_BUCKET_NAME); print('S3 access OK')"
+```
+
+Expected credential method:
+
+```text
+iam-role
+```
+
+Common results:
+
+- `credential method: NONE`: instance role is missing or the metadata hop limit is not `2`.
+- `AccessDenied`: the role exists, but its inline S3 policy or bucket ARN is incorrect.
+- `NoSuchBucket` or `404`: `S3_BUCKET_NAME` does not match the real bucket.
+- Region/redirect error: `AWS_REGION` does not match the bucket region.
 
 ### CloudWatch streams are missing
 
@@ -802,11 +836,23 @@ Verify:
 
 ### Worker is killed or very slow
 
+- A log sequence containing `chunking_complete` followed by `WorkerLostError` and `signal 9 (SIGKILL)` means the worker was killed while loading or running the embedding model.
+- Use Celery's `solo` pool so the worker does not duplicate ML memory through a forked process.
 - Keep Celery concurrency at `1`.
+- Allocate approximately 1.5 GB to both API and worker containers.
+- Keep `EMBEDDING_BATCH_SIZE=8` in `.env.cloud`.
+- Set `ENABLE_IMAGE_CAPTIONING=false` for text-heavy demo PDFs.
 - Add swap.
 - Use smaller PDFs.
 - Stop nonessential containers during image builds if memory is tight.
 - Choose a larger credit-eligible EC2 instance for the recording.
+
+After applying these settings, recreate API and worker:
+
+```bash
+docker compose --env-file .env.cloud -f infra/docker-compose.aws.yml \
+  up --build -d --force-recreate api worker
+```
 
 ### Docker build fails with `No space left on device`
 

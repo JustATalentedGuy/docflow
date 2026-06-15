@@ -66,6 +66,10 @@ def caption_images(state: dict) -> dict:
     Writes: state["image_captions"]
     """
     try:
+        if not settings.ENABLE_IMAGE_CAPTIONING:
+            log.info("image_captioning_disabled", job_id=state["job_id"])
+            return {"image_captions": []}
+
         content  = download_from_s3(state["s3_key"])
         doc_type = state["doc_type"]
         captions: List[Dict[str, Any]] = []

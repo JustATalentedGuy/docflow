@@ -58,7 +58,7 @@ def embed_chunks(state: dict) -> dict:
         # Batch encode; normalize for cosine similarity
         vectors = _get_model().encode(
             child_texts,
-            batch_size=32,
+            batch_size=settings.EMBEDDING_BATCH_SIZE,
             show_progress_bar=False,
             convert_to_numpy=True,
             normalize_embeddings=True,

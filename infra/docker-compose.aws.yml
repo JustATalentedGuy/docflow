@@ -21,7 +21,10 @@ services:
       qdrant:
         condition: service_started
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 1536m
+    environment:
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
     volumes:
       - model_cache:/app/.hf_cache
     healthcheck:
@@ -43,6 +46,7 @@ services:
       celery -A app.workers.tasks.celery_app worker
       --loglevel=info
       --concurrency=1
+      --pool=solo
       --queues=celery
       -n worker@%h
     env_file: ../.env.cloud
@@ -54,7 +58,10 @@ services:
       qdrant:
         condition: service_started
     restart: unless-stopped
-    mem_limit: 700m
+    mem_limit: 1536m
+    environment:
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
     volumes:
       - model_cache:/app/.hf_cache
     logging:

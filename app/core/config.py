@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Hugging Face (BLIP-2 image captioning)
     HF_API_TOKEN: str = "CHANGE_ME"
     HF_CAPTIONING_MODEL: str = "Salesforce/blip-image-captioning-large"
+    ENABLE_IMAGE_CAPTIONING: bool = True
 
     # LangSmith tracing (auto-read by LangChain if set)
     LANGCHAIN_API_KEY: str = "CHANGE_ME"
@@ -39,6 +40,7 @@ class Settings(BaseSettings):
     # Embedding model (sentence-transformers)
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_BATCH_SIZE: int = 8
 
     # Logging
     LOG_LEVEL: str = "INFO"
