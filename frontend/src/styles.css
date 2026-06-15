@@ -404,6 +404,17 @@ input:focus {
   background: #ffffff;
 }
 
+.message.pending {
+  display: grid;
+  gap: 5px;
+  border-style: dashed;
+  color: #465568;
+}
+
+.message.pending small {
+  color: #718096;
+}
+
 .message details {
   margin-top: 10px;
   color: #465568;

@@ -14,6 +14,13 @@ import "./styles.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "/api/v1";
 
+function createClientId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 async function readResponse(response) {
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -256,6 +263,7 @@ function ChatWorkspace({ api, activeChatId, selectedFileId }) {
   const [messages, setMessages] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -273,10 +281,27 @@ function ChatWorkspace({ api, activeChatId, selectedFileId }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (!loading) {
+      setElapsedSeconds(0);
+      return undefined;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [loading]);
+
   async function sendMessage(event) {
     event.preventDefault();
     if (!query.trim() || !activeChatId) return;
-    const userMessage = { id: crypto.randomUUID(), role: "user", content: query, created_at: new Date().toISOString() };
+    const userMessage = {
+      id: createClientId(),
+      role: "user",
+      content: query.trim(),
+      created_at: new Date().toISOString(),
+    };
     setMessages((current) => [...current, userMessage]);
     setQuery("");
     setLoading(true);
@@ -292,7 +317,7 @@ function ChatWorkspace({ api, activeChatId, selectedFileId }) {
       setMessages((current) => [
         ...current,
         {
-          id: crypto.randomUUID(),
+          id: createClientId(),
           role: "assistant",
           content: response.answer,
           created_at: new Date().toISOString(),
@@ -302,7 +327,12 @@ function ChatWorkspace({ api, activeChatId, selectedFileId }) {
     } catch (err) {
       setMessages((current) => [
         ...current,
-        { id: crypto.randomUUID(), role: "assistant", content: err.message, created_at: new Date().toISOString() },
+        {
+          id: createClientId(),
+          role: "assistant",
+          content: `Request failed: ${err.message}`,
+          created_at: new Date().toISOString(),
+        },
       ]);
     } finally {
       setLoading(false);
@@ -335,7 +365,12 @@ function ChatWorkspace({ api, activeChatId, selectedFileId }) {
             )}
           </article>
         ))}
-        {loading && <article className="message assistant">Thinking...</article>}
+        {loading && (
+          <article className="message assistant pending">
+            Searching your documents and preparing an answer...
+            <small>{elapsedSeconds}s elapsed</small>
+          </article>
+        )}
         <div ref={bottomRef} />
       </div>
       <form className="composer" onSubmit={sendMessage}>
