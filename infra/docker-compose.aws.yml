@@ -1,8 +1,11 @@
 services:
   api:
+    image: docflow-backend:latest
     build:
       context: ..
       dockerfile: infra/Dockerfile
+      args:
+        PRELOAD_EMBEDDING_MODEL: "false"
     command: >
       uvicorn app.main:app
       --host 0.0.0.0
@@ -19,6 +22,8 @@ services:
         condition: service_started
     restart: unless-stopped
     mem_limit: 512m
+    volumes:
+      - model_cache:/app/.hf_cache
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()"]
       interval: 10s
@@ -33,9 +38,7 @@ services:
         awslogs-stream: api
 
   worker:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile
+    image: docflow-backend:latest
     command: >
       celery -A app.workers.tasks.celery_app worker
       --loglevel=info
@@ -52,6 +55,8 @@ services:
         condition: service_started
     restart: unless-stopped
     mem_limit: 700m
+    volumes:
+      - model_cache:/app/.hf_cache
     logging:
       driver: awslogs
       options:
@@ -145,5 +150,6 @@ services:
         awslogs-stream: nginx
 
 volumes:
+  model_cache:
   postgres_data:
   qdrant_storage:

@@ -349,19 +349,74 @@ Outbound:
 
 Do not add inbound rules for `5432`, `6379`, `6333`, or `8000`.
 
-### User data
+### Ubuntu installation
+
+Use these commands when the SSH prompt starts with `ubuntu@...`:
 
 ```bash
-#!/bin/bash
-dnf update -y
-dnf install -y docker git
-systemctl enable docker
-systemctl start docker
-usermod -aG docker ec2-user
-curl -L "https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64" \
-  -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
-ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git
+
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install -y \
+  docker-ce \
+  docker-ce-cli \
+  containerd.io \
+  docker-buildx-plugin \
+  docker-compose-plugin
+
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+```
+
+Apply the new Docker group in the current SSH session:
+
+```bash
+newgrp docker
+```
+
+Verify:
+
+```bash
+docker --version
+docker compose version
+docker run --rm hello-world
+```
+
+If `newgrp docker` closes or changes the shell unexpectedly, disconnect with `exit`, reconnect over SSH, and run the verification commands again.
+
+### Amazon Linux 2023 installation
+
+Use these commands only when the SSH user is `ec2-user`:
+
+```bash
+sudo dnf update -y
+sudo dnf install -y docker git
+sudo systemctl enable --now docker
+sudo usermod -aG docker ec2-user
+
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo curl -SL \
+  https://github.com/docker/compose/releases/download/v5.1.2/docker-compose-linux-x86_64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+```
+
+Log out and reconnect, then verify:
+
+```bash
+docker --version
+docker compose version
 ```
 
 ### Optional swap for small instances
@@ -752,6 +807,88 @@ Verify:
 - Use smaller PDFs.
 - Stop nonessential containers during image builds if memory is tight.
 - Choose a larger credit-eligible EC2 instance for the recording.
+
+### Docker build fails with `No space left on device`
+
+The Python backend image includes PyTorch, sentence-transformers, OCR libraries, and document-processing dependencies. An 8 GB root volume is usually too small for the operating system, Docker images, temporary build layers, PostgreSQL, and Qdrant.
+
+The AWS Compose file builds one shared backend image for both API and worker and skips model preloading, but the instance should still have a 20-30 GB gp3 root volume.
+
+Check current usage:
+
+```bash
+df -h
+lsblk
+docker system df
+```
+
+Clean failed build cache:
+
+```bash
+docker builder prune -af
+docker image prune -af
+sudo apt-get clean
+```
+
+Do not run `docker volume prune` or `docker compose down -v` after PostgreSQL/Qdrant contain data.
+
+If the root EBS volume is smaller than 20 GB:
+
+1. Open **EC2 -> Instances -> select the instance**.
+2. Open the **Storage** tab.
+3. Select the root EBS volume ID.
+4. Choose **Actions -> Modify volume**.
+5. Set size to `30 GiB` gp3.
+6. Confirm the modification.
+7. Wait until the modification state is `optimizing` or `completed`.
+
+Back on the Ubuntu instance, identify the root partition:
+
+```bash
+findmnt /
+lsblk
+```
+
+Install the partition growth utility:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y cloud-guest-utils
+```
+
+For the common NVMe layout where root is `/dev/nvme0n1p1`:
+
+```bash
+sudo growpart /dev/nvme0n1 1
+sudo resize2fs /dev/nvme0n1p1
+```
+
+For the common Xen layout where root is `/dev/xvda1`:
+
+```bash
+sudo growpart /dev/xvda 1
+sudo resize2fs /dev/xvda1
+```
+
+If `findmnt -no FSTYPE /` reports `xfs`, use this instead of `resize2fs`:
+
+```bash
+sudo xfs_growfs -d /
+```
+
+Verify the expanded filesystem:
+
+```bash
+df -h /
+```
+
+Retry the deployment:
+
+```bash
+cd ~/docflow
+git pull
+docker compose --env-file .env.cloud -f infra/docker-compose.aws.yml up --build -d
+```
 
 ## 15. Teardown
 

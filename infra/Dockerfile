@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+ARG PRELOAD_EMBEDDING_MODEL=true
+
 # System libraries:
 #   tesseract-ocr   — OCR engine (replaces PaddleOCR)
 #   poppler-utils   — needed by pytesseract for PDF page info
@@ -26,10 +28,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download sentence-transformers model weights at build time.
 # (~90 MB) — avoids a cold-start delay on first /query request.
-RUN python -c "\
-from sentence_transformers import SentenceTransformer; \
-SentenceTransformer('all-MiniLM-L6-v2'); \
-print('sentence-transformers model ready')"
+RUN if [ "$PRELOAD_EMBEDDING_MODEL" = "true" ]; then \
+      python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2'); print('sentence-transformers model ready')"; \
+    else \
+      echo "Skipping embedding model preload"; \
+    fi
 
 # Copy application source
 COPY app/ ./app/
