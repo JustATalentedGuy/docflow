@@ -2,6 +2,11 @@
 .env
 .env.cloud
 .env.local
+.env.*
+!.env.example
+!.env.cloud.example
+*.pem
+*.key
 
 # Python
 __pycache__/
@@ -30,3 +35,5 @@ Thumbs.db
 # Logs and temporary files
 *.log
 tmp/
+coverage/
+.coverage

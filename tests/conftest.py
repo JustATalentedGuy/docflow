@@ -18,7 +18,6 @@ import pytest
 _STUBS = [
     # langchain_core must NOT be here — langchain_text_splitters needs it as a real package
     "langchain_groq",
-    "langsmith",
     "langgraph",
     "langgraph.graph",
     "celery",
@@ -33,12 +32,15 @@ for _pkg in _STUBS:
     if _pkg not in sys.modules:
         sys.modules[_pkg] = MagicMock()
 
-# langchain_core.messages: provide concrete stub classes so SystemMessage /
-# HumanMessage can be used in type annotations without errors.
-_lc_msgs = MagicMock()
-_lc_msgs.SystemMessage = type("SystemMessage", (), {"__init__": lambda s, content: None})
-_lc_msgs.HumanMessage  = type("HumanMessage",  (), {"__init__": lambda s, content: None})
-sys.modules["langchain_core.messages"] = _lc_msgs
+# Use the real message classes when LangChain is installed. The fallback keeps
+# the lightweight test environment importable without replacing real modules.
+try:
+    import langchain_core.messages  # noqa: F401
+except ImportError:
+    _lc_msgs = MagicMock()
+    _lc_msgs.SystemMessage = type("SystemMessage", (), {"__init__": lambda s, content: None})
+    _lc_msgs.HumanMessage = type("HumanMessage", (), {"__init__": lambda s, content: None})
+    sys.modules["langchain_core.messages"] = _lc_msgs
 
 # langgraph.graph: END must be a real string constant.
 import langgraph.graph as _lg  # noqa: E402 (already mocked above)

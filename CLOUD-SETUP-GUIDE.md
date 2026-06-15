@@ -6,6 +6,42 @@ The target interview statement is:
 
 > Deployed a multi-tenant RAG system on AWS using S3 for document storage, containerized PostgreSQL for metadata, EC2-hosted API and worker services, Qdrant for vector search, and CloudWatch for centralized logs.
 
+## Quick checklist
+
+Complete these sections in order:
+
+1. Check AWS credits and create a small billing budget.
+2. Create the VPC, public subnet, route table, and Internet Gateway.
+3. Create a private S3 bucket.
+4. Create an EC2 IAM role with separate trust and permissions policies.
+5. Create the CloudWatch log group.
+6. Launch an Ubuntu or Amazon Linux EC2 instance with enough RAM and disk.
+7. Publish the repository from Windows and clone it on EC2.
+8. Create `.env.cloud`.
+9. Start the Docker Compose stack.
+10. Test registration, upload, processing, chat, S3, and CloudWatch.
+11. Record the demo and tear down AWS resources.
+
+Never paste real API keys, AWS credentials, database passwords, public IP addresses, account IDs, or PEM files into this repository.
+
+## Contents
+
+- [Architecture](#1-architecture)
+- [Design choices and cost controls](#2-why-this-architecture)
+- [Cost controls](#3-cost-controls)
+- [Repository support](#4-repository-support)
+- [VPC and subnet](#5-create-the-aws-network)
+- [S3](#6-create-s3-storage)
+- [IAM role](#7-create-the-ec2-iam-role)
+- [CloudWatch](#8-create-cloudwatch-logging)
+- [EC2 and Docker](#9-launch-ec2)
+- [Windows, GitHub, and deployment](#10-deploy-the-application)
+- [Persistence and backups](#11-persistence-and-backups)
+- [Demo workflow](#12-demo-and-screenshot-workflow)
+- [Interview explanation](#13-interview-explanation)
+- [Troubleshooting](#14-troubleshooting)
+- [Teardown](#15-teardown)
+
 ## 1. Architecture
 
 ```text
@@ -251,7 +287,7 @@ Now add a separate permissions policy:
         "s3:GetObject",
         "s3:DeleteObject"
       ],
-      "Resource": "arn:aws:s3:::docflow-demo-s3/*"
+      "Resource": "arn:aws:s3:::docflow-demo-yourname/*"
     },
     {
       "Sid": "DocumentBucketMetadata",
@@ -260,7 +296,7 @@ Now add a separate permissions policy:
         "s3:ListBucket",
         "s3:GetBucketLocation"
       ],
-      "Resource": "arn:aws:s3:::docflow-demo-s3"
+      "Resource": "arn:aws:s3:::docflow-demo-yourname"
     },
     {
       "Sid": "ContainerLogs",
@@ -584,26 +620,35 @@ git push
 
 The remaining commands run on the EC2 Linux instance.
 
-SSH into EC2:
+Choose the SSH username from the AMI used to create the instance:
+
+- Ubuntu AMI: `ubuntu`
+- Amazon Linux AMI: `ec2-user`
+
+For Ubuntu:
 
 ```powershell
-ssh -i your-key.pem ec2-user@YOUR_EC2_PUBLIC_DNS
+ssh -i "C:\path\to\your-key.pem" ubuntu@YOUR_EC2_PUBLIC_IP
 ```
 
-On Windows, the key may be in Downloads:
+For Amazon Linux:
 
 ```powershell
-ssh -i "$HOME\Downloads\your-key.pem" ec2-user@YOUR_EC2_PUBLIC_DNS
+ssh -i "C:\path\to\your-key.pem" ec2-user@YOUR_EC2_PUBLIC_IP
 ```
 
-If Windows reports that the private key permissions are too open:
+`-i` is one option and must not be written as `- i`.
+
+If Windows reports that private-key permissions are too open:
 
 ```powershell
-icacls "$HOME\Downloads\your-key.pem" /inheritance:r
-icacls "$HOME\Downloads\your-key.pem" /grant:r "$($env:USERNAME):(R)"
+$key = "$HOME\Downloads\your-key.pem"
+icacls $key /inheritance:r
+icacls $key /grant:r "$($env:USERDOMAIN)\$($env:USERNAME):(R)"
+icacls $key
 ```
 
-Then retry SSH.
+The final command should show only your Windows user with read access. Then retry SSH with `ssh -i $key ...`.
 
 ### 10.3 Clone and configure Docflow on EC2
 

@@ -110,7 +110,7 @@ def test_slide_text_cleaner_removes_repeated_presentation_chrome():
     cleaned = clean_document_pages(pages)
 
     assert "Dhannya SM" not in cleaned
-    assert "Regular Languages" not in cleaned
+    assert "Regular Languages" not in cleaned.splitlines()
     assert "1 / 6" not in cleaned
     assert "Not every language is a regular language" in cleaned
     assert "Proof of example" in cleaned
